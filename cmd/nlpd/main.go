@@ -7,20 +7,33 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/gorilla/mux"
+
 	"github.com/duexcoast/nlp"
+	"github.com/duexcoast/nlp/stemmer"
 )
 
 func main() {
 	// routing
 	// /health is an exact match
 	// /health/ is a prefix match
-	http.HandleFunc("/health", healthHandler)
-	http.HandleFunc("/tokenize", tokenizeHandler)
+	r := mux.NewRouter()
+	r.HandleFunc("/health", healthHandler).Methods(http.MethodGet)
+	r.HandleFunc("/tokenize", tokenizeHandler).Methods(http.MethodPost)
+	r.HandleFunc("/stem/{word}", stemHandler).Methods(http.MethodGet)
+	http.Handle("/", r)
 
 	// run server
 	if err := http.ListenAndServe(":8080", nil); err != nil {
 		log.Fatalf("error: %s", err)
 	}
+}
+
+func stemHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	word := vars["word"]
+	stem := stemmer.Stem(word)
+	fmt.Fprintln(w, stem)
 }
 
 // Exercise: write a tokenizeHandler that will read the text from the
@@ -30,11 +43,19 @@ func tokenizeHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
-	// Convert and validate error
-	defer r.Body.Close()
-	data, err := io.ReadAll(r.Body)
+	// Step 1: Convert and validate error
+	// We don't want to accept just whatever - this caps the data
+	// we read from the req at 1 Mb
+	// We're handling our validation in the next couple steps
+	rdr := io.LimitReader(r.Body, 1_000_000)
+	data, err := io.ReadAll(rdr)
 	if err != nil {
 		http.Error(w, "cant read", http.StatusBadRequest)
+		// we need to return after http.Error
+		return
+	}
+	if len(data) == 0 {
+		http.Error(w, "missing data", http.StatusBadRequest)
 		return
 	}
 
