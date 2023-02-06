@@ -17,10 +17,15 @@ func main() {
 	// routing
 	// /health is an exact match
 	// /health/ is a prefix match
+	logger := log.New(log.Writer(), "nlp", log.LstdFlags|log.Lshortfile)
+	s := Server{
+		logger: logger,
+	}
+
 	r := mux.NewRouter()
-	r.HandleFunc("/health", healthHandler).Methods(http.MethodGet)
-	r.HandleFunc("/tokenize", tokenizeHandler).Methods(http.MethodPost)
-	r.HandleFunc("/stem/{word}", stemHandler).Methods(http.MethodGet)
+	r.HandleFunc("/health", s.healthHandler).Methods(http.MethodGet)
+	r.HandleFunc("/tokenize", s.tokenizeHandler).Methods(http.MethodPost)
+	r.HandleFunc("/stem/{word}", s.stemHandler).Methods(http.MethodGet)
 	http.Handle("/", r)
 
 	// run server
@@ -29,7 +34,11 @@ func main() {
 	}
 }
 
-func stemHandler(w http.ResponseWriter, r *http.Request) {
+type Server struct {
+	logger *log.Logger
+}
+
+func (s *Server) stemHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	word := vars["word"]
 	stem := stemmer.Stem(word)
@@ -39,7 +48,7 @@ func stemHandler(w http.ResponseWriter, r *http.Request) {
 // Exercise: write a tokenizeHandler that will read the text from the
 // request body and return JSON in the format {"tokens": ["who", "on", "first"]}
 
-func tokenizeHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) tokenizeHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -76,7 +85,7 @@ func tokenizeHandler(w http.ResponseWriter, r *http.Request) {
 	// fmt.Fprintln(w, "OK")
 }
 
-func healthHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
 	// TODO: run a health check
 	fmt.Fprintln(w, "OK")
 }
